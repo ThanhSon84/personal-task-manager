@@ -1,66 +1,46 @@
 import React from 'react';
 
-function FilterBar({ filters, onChange, onReset }) {
+export default function FilterBar({ filters, onChange, onReset }) {
   return (
-    <section className="filter-bar panel">
+    <section className="panel">
       <div className="panel-head compact">
-        <h2>BỘ LỌC CÔNG VIỆC</h2>
-        <button className="ghost-btn" onClick={onReset}>Đặt lại</button>
+        <h2>BỘ LỌC</h2>
       </div>
 
-      <div className="filter-grid search-grid advanced-grid">
-        <label className="search-field wide-field">
+      <div className="modal-grid three-col">
+        <label>
           <span>Từ khóa</span>
-          <input
-            type="text"
-            value={filters.keyword}
-            placeholder="Tìm theo tiêu đề hoặc mô tả..."
-            onChange={(e) => onChange({ ...filters, keyword: e.target.value })}
-          />
+          <input value={filters.keyword} onChange={(e) => onChange((prev) => ({ ...prev, keyword: e.target.value }))} placeholder="Tìm task hoặc sự kiện" />
         </label>
-
         <label>
           <span>Ngày</span>
-          <input
-            type="date"
-            value={filters.date}
-            onChange={(e) => onChange({ ...filters, date: e.target.value })}
-          />
+          <input type="date" value={filters.date} onChange={(e) => onChange((prev) => ({ ...prev, date: e.target.value }))} />
         </label>
-
         <label>
-          <span>Sắp xếp</span>
-          <select
-            value={filters.sortBy}
-            onChange={(e) => onChange({ ...filters, sortBy: e.target.value })}
-          >
+          <span>Sắp xếp task</span>
+          <select value={filters.sort_by} onChange={(e) => onChange((prev) => ({ ...prev, sort_by: e.target.value }))}>
             <option value="due_asc">Hạn gần nhất</option>
             <option value="due_desc">Hạn xa nhất</option>
-            <option value="priority_high">Ưu tiên cao trước</option>
-            <option value="priority_low">Ưu tiên thấp trước</option>
+            <option value="priority_high">Ưu tiên cao</option>
+            <option value="priority_low">Ưu tiên thấp</option>
           </select>
         </label>
+      </div>
 
-        <label className="toggle-chip">
-          <input
-            type="checkbox"
-            checked={filters.overdueOnly}
-            onChange={(e) => onChange({ ...filters, overdueOnly: e.target.checked })}
-          />
-          <span>Chỉ việc quá hạn</span>
+      <div className="modal-grid two-col">
+        <label className="toggle-field">
+          <span>Chỉ task quá hạn</span>
+          <input type="checkbox" checked={filters.overdue_only} onChange={(e) => onChange((prev) => ({ ...prev, overdue_only: e.target.checked }))} />
         </label>
+        <label className="toggle-field">
+          <span>Chỉ task hoàn thành</span>
+          <input type="checkbox" checked={filters.completed_only} onChange={(e) => onChange((prev) => ({ ...prev, completed_only: e.target.checked }))} />
+        </label>
+      </div>
 
-        <label className="toggle-chip">
-          <input
-            type="checkbox"
-            checked={filters.completedOnly}
-            onChange={(e) => onChange({ ...filters, completedOnly: e.target.checked })}
-          />
-          <span>Chỉ việc đã xong</span>
-        </label>
+      <div className="modal-actions">
+        <button type="button" className="ghost-btn" onClick={onReset}>Đặt lại bộ lọc</button>
       </div>
     </section>
   );
 }
-
-export default FilterBar;

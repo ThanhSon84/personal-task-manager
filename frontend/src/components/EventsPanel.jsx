@@ -1,23 +1,20 @@
 import React, { useMemo, useState } from 'react';
 
-const REMINDER_OPTIONS = [
-  { value: 5, label: '5 phút trước' },
-  { value: 10, label: '10 phút trước' },
-  { value: 30, label: '30 phút trước' },
-  { value: 60, label: '1 giờ trước' },
-];
+const EMPTY_FORM = {
+  title: '',
+  description: '',
+  category_id: '',
+  start_time: '',
+  duration_minutes: 60,
+  location: '',
+};
 
-function EventsPanel({ events, categories, onCreateEvent, onOpenEvent }) {
-  const [form, setForm] = useState({
-    title: '',
-    description: '',
-    categoryid: categories[0]?.id || 1,
-    starttime: '',
-    durationminutes: 60,
-    location: '',
-    reminderOffsets: [],
-  });
+export default function EventsPanel({ events = [], categories = [], onCreateEvent, onOpenEvent }) {
   const [keyword, setKeyword] = useState('');
+  const [form, setForm] = useState({
+    ...EMPTY_FORM,
+    category_id: categories[0]?.id || '',
+  });
 
   const filteredEvents = useMemo(() => {
     const q = keyword.trim().toLowerCase();
@@ -30,39 +27,19 @@ function EventsPanel({ events, categories, onCreateEvent, onOpenEvent }) {
       .sort((a, b) => new Date(a.start_time) - new Date(b.start_time));
   }, [events, keyword]);
 
-  function toggleReminder(minutes) {
-    setForm((prev) => ({
-      ...prev,
-      reminderOffsets: prev.reminderOffsets.includes(minutes)
-        ? prev.reminderOffsets.filter((item) => item !== minutes)
-        : [...prev.reminderOffsets, minutes].sort((a, b) => a - b),
-    }));
-  }
-
-  async function handleSubmit(e) {
+  const submit = async (e) => {
     e.preventDefault();
-    if (!form.title || !form.starttime) return;
-
+    if (!form.title.trim() || !form.start_time) return;
     await onCreateEvent({
       title: form.title.trim(),
       description: form.description.trim(),
-      category_id: Number(form.categoryid),
-      start_time: form.starttime,
-      duration_minutes: Number(form.durationminutes),
+      category_id: form.category_id ? Number(form.category_id) : null,
+      start_time: form.start_time,
+      duration_minutes: Number(form.duration_minutes) || 60,
       location: form.location.trim(),
-      reminder_offsets: form.reminderOffsets,
     });
-
-    setForm({
-      title: '',
-      description: '',
-      categoryid: categories[0]?.id || 1,
-      starttime: '',
-      durationminutes: 60,
-      location: '',
-      reminderOffsets: [],
-    });
-  }
+    setForm({ ...EMPTY_FORM, category_id: categories[0]?.id || '' });
+  };
 
   return (
     <section className="panel">
@@ -71,117 +48,50 @@ function EventsPanel({ events, categories, onCreateEvent, onOpenEvent }) {
         <span className="count-pill">{filteredEvents.length}</span>
       </div>
 
-      <form className="note-form" onSubmit={handleSubmit}>
-        <input
-          value={form.title}
-          onChange={(e) => setForm({ ...form, title: e.target.value })}
-          placeholder="Tên sự kiện"
-        />
-
-        <textarea
-          rows={3}
-          value={form.description}
-          onChange={(e) => setForm({ ...form, description: e.target.value })}
-          placeholder="Mô tả ngắn"
-        />
-
+      <form className="note-form" onSubmit={submit}>
+        <input value={form.title} onChange={(e) => setForm((prev) => ({ ...prev, title: e.target.value }))} placeholder="Tên sự kiện" />
+        <textarea rows="3" value={form.description} onChange={(e) => setForm((prev) => ({ ...prev, description: e.target.value }))} placeholder="Mô tả ngắn" />
         <div className="modal-grid two-col">
-          <select
-            value={form.categoryid}
-            onChange={(e) => setForm({ ...form, categoryid: e.target.value })}
-          >
+          <select value={form.category_id} onChange={(e) => setForm((prev) => ({ ...prev, category_id: e.target.value }))}>
+            <option value="">Chưa phân nhóm</option>
             {categories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.name}
-              </option>
+              <option key={category.id} value={category.id}>{category.name}</option>
             ))}
           </select>
-
-          <input
-            type="text"
-            value={form.location}
-            onChange={(e) => setForm({ ...form, location: e.target.value })}
-            placeholder="Địa điểm"
-          />
+          <input type="text" value={form.location} onChange={(e) => setForm((prev) => ({ ...prev, location: e.target.value }))} placeholder="Địa điểm" />
         </div>
-
         <div className="modal-grid two-col">
-          <input
-            type="datetime-local"
-            value={form.starttime}
-            onChange={(e) => setForm({ ...form, starttime: e.target.value })}
-          />
-
-          <input
-            type="number"
-            min={15}
-            value={form.durationminutes}
-            onChange={(e) => setForm({ ...form, durationminutes: e.target.value })}
-            placeholder="Thời lượng (phút)"
-          />
+          <input type="datetime-local" value={form.start_time} onChange={(e) => setForm((prev) => ({ ...prev, start_time: e.target.value }))} />
+          <input type="number" min="1" value={form.duration_minutes} onChange={(e) => setForm((prev) => ({ ...prev, duration_minutes: e.target.value }))} placeholder="Thời lượng phút" />
         </div>
-
-        <div className="detail-section">
-          <span className="detail-label">Mốc nhắc</span>
-          <div className="chip-group">
-            {REMINDER_OPTIONS.map((option) => (
-              <label key={option.value} className="chip-toggle">
-                <input
-                  type="checkbox"
-                  checked={form.reminderOffsets.includes(option.value)}
-                  onChange={() => toggleReminder(option.value)}
-                />
-                <span>{option.label}</span>
-              </label>
-            ))}
-          </div>
-        </div>
-
         <button type="submit">Tạo sự kiện</button>
       </form>
 
       <label className="event-search-field">
         <span>Tìm sự kiện</span>
-        <input
-          type="text"
-          value={keyword}
-          placeholder="Tìm theo tên, mô tả hoặc địa điểm..."
-          onChange={(e) => setKeyword(e.target.value)}
-        />
+        <input type="text" value={keyword} onChange={(e) => setKeyword(e.target.value)} placeholder="Tìm theo tên, mô tả hoặc địa điểm..." />
       </label>
 
       <div className="event-list">
         {filteredEvents.length === 0 ? (
           <div className="empty-column-state compact-empty-state">
-            <div className="empty-icon">📅</div>
+            <div className="empty-icon" />
             <strong>Chưa có sự kiện phù hợp</strong>
-            <p>Thử từ khóa khác hoặc tạo một sự kiện mới để kiểm tra lịch tuần/tháng.</p>
+            <p>Hãy tạo sự kiện mới hoặc đổi từ khóa tìm kiếm.</p>
           </div>
         ) : (
           filteredEvents.map((event) => (
-            <article
-              key={event.id}
-              className="event-card clickable-card"
-              onClick={() => onOpenEvent(event)}
-            >
+            <article key={event.id} className="event-card clickable-card" onClick={() => onOpenEvent(event)}>
               <div className="note-head">
                 <strong>{event.title}</strong>
                 <span className="event-dot">EVENT</span>
               </div>
-
               {event.description ? <p>{event.description}</p> : null}
-
               <div className="task-time">
                 <span>{new Date(event.start_time).toLocaleString('vi-VN')}</span>
                 <span>{event.duration_minutes} phút</span>
                 {event.location ? <span>{event.location}</span> : null}
               </div>
-
-              {Array.isArray(event.reminder_offsets) && event.reminder_offsets.length ? (
-                <div className="task-time">
-                  <span>Nhắc: {event.reminder_offsets.join(', ')} phút trước</span>
-                </div>
-              ) : null}
             </article>
           ))
         )}
@@ -189,5 +99,3 @@ function EventsPanel({ events, categories, onCreateEvent, onOpenEvent }) {
     </section>
   );
 }
-
-export default EventsPanel;
