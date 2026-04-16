@@ -1,27 +1,37 @@
 import React from 'react';
 
 function TaskCard({ task, onToggle, onDelete, onOpen, onDragStart, onDragEnd, isDragging }) {
+  function handleOpen() {
+    onOpen(task);
+  }
+
+  function handleKeyDown(e) {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onOpen(task);
+    }
+  }
+
+  function handleDragStart(e) {
+    e.stopPropagation();
+    onDragStart(e, task);
+  }
+
+  function handleDelete(e) {
+    e.stopPropagation();
+    onDelete(task.id);
+  }
+
   return (
     <div
       className={`task-card ${task.completed ? 'done' : ''} ${task.overdue ? 'overdue' : ''} ${isDragging ? 'dragging' : ''}`}
-      onClick={() => onOpen(task)}
+      onClick={handleOpen}
       role="button"
       tabIndex={0}
-      draggable
-      onDragStart={(e) => onDragStart(e, task)}
-      onDragEnd={onDragEnd}
-      onKeyDown={(e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          onOpen(task);
-        }
-      }}
+      onKeyDown={handleKeyDown}
     >
       <div className="task-card-head">
-        <label
-          className="task-checkbox"
-          onClick={(e) => e.stopPropagation()}
-        >
+        <label className="task-checkbox" onClick={(e) => e.stopPropagation()}>
           <input
             type="checkbox"
             checked={Boolean(task.completed)}
@@ -29,28 +39,49 @@ function TaskCard({ task, onToggle, onDelete, onOpen, onDragStart, onDragEnd, is
           />
           <span>{task.title}</span>
         </label>
-        <button
-          className="icon-btn"
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete(task.id);
-          }}
-        >
-          ✕
-        </button>
+
+        <div className="task-actions">
+          <button
+            type="button"
+            className="drag-handle"
+            draggable
+            onDragStart={handleDragStart}
+            onDragEnd={onDragEnd}
+            onClick={(e) => e.stopPropagation()}
+            aria-label="Kéo thả task"
+            title="Kéo để đổi category"
+          >
+            ⋮⋮
+          </button>
+
+          <button
+            type="button"
+            className="icon-btn"
+            onClick={handleDelete}
+            aria-label="Xóa task"
+          >
+            ×
+          </button>
+        </div>
       </div>
 
       {task.description ? <p className="task-description">{task.description}</p> : null}
 
       <div className="meta-row">
-        <span className={`badge priority-${task.priority || 'medium'}`}>{task.priority || 'medium'}</span>
+        <span className={`badge priority-${task.priority || 'medium'}`}>
+          {task.priority || 'medium'}
+        </span>
         {task.overdue ? <span className="badge overdue-badge">Quá hạn</span> : null}
         {task.completed ? <span className="badge success-badge">Đã xong</span> : null}
       </div>
 
       <div className="task-time">
-        {task.start_time ? <span>Bắt đầu: {new Date(task.start_time).toLocaleString('vi-VN')}</span> : null}
-        {task.due_at ? <span>Hạn: {new Date(task.due_at).toLocaleString('vi-VN')}</span> : null}
+        {task.starttime ? (
+          <span>Bắt đầu: {new Date(task.starttime).toLocaleString('vi-VN')}</span>
+        ) : null}
+        {task.dueat ? (
+          <span>Hạn: {new Date(task.dueat).toLocaleString('vi-VN')}</span>
+        ) : null}
       </div>
     </div>
   );

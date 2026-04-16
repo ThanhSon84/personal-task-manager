@@ -52,61 +52,59 @@ function query(sql, params = []) {
   });
 }
 
-function parseReminderOffsets(value) {
-  if (Array.isArray(value)) {
-    return [...new Set(
-      value
-        .map((item) => Number(item))
-        .filter((item) => Number.isInteger(item) && item >= 0)
-    )].sort((a, b) => a - b);
+function pick(body, ...keys) {
+  for (const key of keys) {
+    if (Object.prototype.hasOwnProperty.call(body, key)) return body[key];
   }
-
-  if (typeof value === 'string' && value.trim()) {
-    try {
-      const parsed = JSON.parse(value);
-      return parseReminderOffsets(parsed);
-    } catch (err) {
-      return [];
-    }
-  }
-
-  return [];
+  return undefined;
 }
 
 function normalizeAttachment(row) {
   return {
     id: row.id,
     user_id: row.user_id,
+    userId: row.user_id,
     target_type: row.target_type,
+    targetType: row.target_type,
     target_id: row.target_id,
+    targetId: row.target_id,
     file_name: row.file_name,
+    filename: row.file_name,
     file_url: row.file_url,
+    fileurl: row.file_url,
     mime_type: row.mime_type,
+    mimetype: row.mime_type,
     created_at: row.created_at,
+    createdat: row.created_at,
   };
 }
 
 function normalizeTask(row, attachments = []) {
-  const overdue =
-    !!row.due_at &&
-    !row.completed &&
-    new Date(row.due_at).getTime() < Date.now();
+  const overdue = !!row.due_at && !row.completed && new Date(row.due_at).getTime() < Date.now();
 
   return {
     id: row.id,
     user_id: row.user_id,
+    userId: row.user_id,
     category_id: row.category_id,
+    categoryid: row.category_id,
     title: row.title,
     description: row.description || '',
     start_time: row.start_time,
+    starttime: row.start_time,
     duration_minutes: row.duration_minutes,
+    durationminutes: row.duration_minutes,
     due_at: row.due_at,
+    dueat: row.due_at,
     priority: row.priority || 'medium',
     status: row.status || (row.completed ? 'completed' : 'pending'),
     completed: !!row.completed,
     completed_at: row.completed_at,
+    completedat: row.completed_at,
     created_at: row.created_at,
+    createdat: row.created_at,
     updated_at: row.updated_at,
+    updatedat: row.updated_at,
     overdue,
     attachments,
   };
@@ -116,15 +114,20 @@ function normalizeEvent(row, attachments = []) {
   return {
     id: row.id,
     user_id: row.user_id,
+    userId: row.user_id,
     category_id: row.category_id,
+    categoryid: row.category_id,
     title: row.title,
     description: row.description || '',
     start_time: row.start_time,
+    starttime: row.start_time,
     duration_minutes: row.duration_minutes,
+    durationminutes: row.duration_minutes,
     location: row.location || '',
-    reminder_offsets: parseReminderOffsets(row.reminder_offsets),
     created_at: row.created_at,
+    createdat: row.created_at,
     updated_at: row.updated_at,
+    updatedat: row.updated_at,
     attachments,
   };
 }
@@ -133,21 +136,20 @@ function normalizeNote(row) {
   return {
     id: row.id,
     user_id: row.user_id,
+    userId: row.user_id,
     title: row.title || '',
     content: row.content,
     color: row.color || '',
     pinned: !!row.pinned,
     created_at: row.created_at,
+    createdat: row.created_at,
     updated_at: row.updated_at,
+    updatedat: row.updated_at,
   };
 }
 
 async function ensureDefaultCategories(userId) {
-  const rows = await query(
-    'SELECT id FROM categories WHERE user_id = ? LIMIT 1',
-    [userId]
-  );
-
+  const rows = await query('SELECT id FROM categories WHERE user_id = ? LIMIT 1', [userId]);
   if (rows.length) return;
 
   const defaults = [
@@ -159,10 +161,7 @@ async function ensureDefaultCategories(userId) {
 
   for (const [name, type, color, sortOrder] of defaults) {
     await query(
-      `
-      INSERT INTO categories (user_id, name, type, color, sort_order)
-      VALUES (?, ?, ?, ?, ?)
-      `,
+      'INSERT INTO categories (user_id, name, type, color, sort_order) VALUES (?, ?, ?, ?, ?)',
       [userId, name, type, color, sortOrder]
     );
   }
@@ -170,54 +169,39 @@ async function ensureDefaultCategories(userId) {
 
 async function getAttachments(userId, targetType, targetId) {
   const rows = await query(
-    `
-    SELECT id, user_id, target_type, target_id, file_name, file_url, mime_type, created_at
-    FROM attachments
-    WHERE user_id = ? AND target_type = ? AND target_id = ?
-    ORDER BY created_at DESC
-    `,
+    `SELECT id, user_id, target_type, target_id, file_name, file_url, mime_type, created_at
+     FROM attachments
+     WHERE user_id = ? AND target_type = ? AND target_id = ?
+     ORDER BY created_at DESC`,
     [userId, targetType, targetId]
   );
-
   return rows.map(normalizeAttachment);
 }
 
 async function getTaskById(userId, taskId) {
   const rows = await query(
-    `
-    SELECT
-      id, user_id, category_id, title, description,
-      start_time, duration_minutes, due_at, priority,
-      status, completed, completed_at, created_at, updated_at
-    FROM tasks
-    WHERE id = ? AND user_id = ?
-    LIMIT 1
-    `,
+    `SELECT id, user_id, category_id, title, description, start_time, duration_minutes, due_at,
+            priority, status, completed, completed_at, created_at, updated_at
+     FROM tasks
+     WHERE id = ? AND user_id = ?
+     LIMIT 1`,
     [taskId, userId]
   );
-
   if (!rows.length) return null;
-
   const attachments = await getAttachments(userId, 'task', taskId);
   return normalizeTask(rows[0], attachments);
 }
 
 async function getEventById(userId, eventId) {
   const rows = await query(
-    `
-    SELECT
-      id, user_id, category_id, title, description,
-      start_time, duration_minutes, location, reminder_offsets,
-      created_at, updated_at
-    FROM events
-    WHERE id = ? AND user_id = ?
-    LIMIT 1
-    `,
+    `SELECT id, user_id, category_id, title, description, start_time, duration_minutes, location,
+            created_at, updated_at
+     FROM events
+     WHERE id = ? AND user_id = ?
+     LIMIT 1`,
     [eventId, userId]
   );
-
   if (!rows.length) return null;
-
   const attachments = await getAttachments(userId, 'event', eventId);
   return normalizeEvent(rows[0], attachments);
 }
@@ -226,33 +210,26 @@ async function getEventById(userId, eventId) {
 
 app.post('/api/register', async (req, res) => {
   try {
-    const { username, password, display_name } = req.body;
+    const username = pick(req.body, 'username');
+    const password = pick(req.body, 'password');
+    const displayName = pick(req.body, 'display_name', 'displayname');
 
     if (!username || !password) {
       return res.status(400).json({ error: 'Thiếu thông tin!' });
     }
 
-    const existing = await query(
-      'SELECT id FROM users WHERE username = ? LIMIT 1',
-      [username]
-    );
-
+    const existing = await query('SELECT id FROM users WHERE username = ? LIMIT 1', [username]);
     if (existing.length) {
       return res.status(400).json({ error: 'Tên đăng nhập đã tồn tại!' });
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-
     const result = await query(
-      `
-      INSERT INTO users (username, password, display_name)
-      VALUES (?, ?, ?)
-      `,
-      [username, hashedPassword, display_name || null]
+      'INSERT INTO users (username, password, display_name) VALUES (?, ?, ?)',
+      [username, hashedPassword, displayName || null]
     );
 
     await ensureDefaultCategories(result.insertId);
-
     res.status(201).json({ message: 'Đăng ký thành công' });
   } catch (err) {
     console.error(err);
@@ -262,20 +239,16 @@ app.post('/api/register', async (req, res) => {
 
 app.post('/api/login', async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const username = pick(req.body, 'username');
+    const password = pick(req.body, 'password');
 
-    const rows = await query(
-      'SELECT * FROM users WHERE username = ? LIMIT 1',
-      [username]
-    );
-
+    const rows = await query('SELECT * FROM users WHERE username = ? LIMIT 1', [username]);
     if (!rows.length) {
       return res.status(401).json({ error: 'Sai tên đăng nhập' });
     }
 
     const user = rows[0];
     const isMatch = await bcrypt.compare(password, user.password);
-
     if (!isMatch) {
       return res.status(401).json({ error: 'Sai mật khẩu' });
     }
@@ -283,11 +256,7 @@ app.post('/api/login', async (req, res) => {
     await ensureDefaultCategories(user.id);
 
     const token = jwt.sign(
-      {
-        id: user.id,
-        username: user.username,
-        display_name: user.display_name || null,
-      },
+      { id: user.id, username: user.username, display_name: user.display_name || null },
       SECRET_KEY,
       { expiresIn: '1h' }
     );
@@ -298,6 +267,7 @@ app.post('/api/login', async (req, res) => {
         id: user.id,
         username: user.username,
         display_name: user.display_name,
+        displayname: user.display_name,
       },
     });
   } catch (err) {
@@ -311,18 +281,23 @@ app.post('/api/login', async (req, res) => {
 app.get('/api/categories', authMiddleware, async (req, res) => {
   try {
     await ensureDefaultCategories(req.user.id);
-
     const rows = await query(
-      `
-      SELECT id, user_id, name, type, color, sort_order, created_at, updated_at
-      FROM categories
-      WHERE user_id = ?
-      ORDER BY sort_order ASC, id ASC
-      `,
+      `SELECT id, user_id, name, type, color, sort_order, created_at, updated_at
+       FROM categories
+       WHERE user_id = ?
+       ORDER BY sort_order ASC, id ASC`,
       [req.user.id]
     );
 
-    res.json(rows);
+    res.json(
+      rows.map((row) => ({
+        ...row,
+        userId: row.user_id,
+        sortorder: row.sort_order,
+        createdat: row.created_at,
+        updatedat: row.updated_at,
+      }))
+    );
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: 'Không thể tải categories.' });
@@ -334,18 +309,11 @@ app.get('/api/categories', authMiddleware, async (req, res) => {
 app.get('/api/tasks', authMiddleware, async (req, res) => {
   try {
     const rows = await query(
-      `
-      SELECT
-        id, user_id, category_id, title, description,
-        start_time, duration_minutes, due_at, priority,
-        status, completed, completed_at, created_at, updated_at
-      FROM tasks
-      WHERE user_id = ?
-      ORDER BY
-        CASE WHEN due_at IS NULL THEN 1 ELSE 0 END,
-        due_at ASC,
-        created_at DESC
-      `,
+      `SELECT id, user_id, category_id, title, description, start_time, duration_minutes, due_at,
+              priority, status, completed, completed_at, created_at, updated_at
+       FROM tasks
+       WHERE user_id = ?
+       ORDER BY CASE WHEN due_at IS NULL THEN 1 ELSE 0 END, due_at ASC, created_at DESC`,
       [req.user.id]
     );
 
@@ -354,15 +322,10 @@ app.get('/api/tasks', authMiddleware, async (req, res) => {
 
     if (ids.length) {
       attachmentRows = await query(
-        `
-        SELECT
-          id, user_id, target_type, target_id, file_name, file_url, mime_type, created_at
-        FROM attachments
-        WHERE user_id = ?
-          AND target_type = 'task'
-          AND target_id IN (?)
-        ORDER BY created_at DESC
-        `,
+        `SELECT id, user_id, target_type, target_id, file_name, file_url, mime_type, created_at
+         FROM attachments
+         WHERE user_id = ? AND target_type = 'task' AND target_id IN (?)
+         ORDER BY created_at DESC`,
         [req.user.id, ids]
       );
     }
@@ -382,48 +345,39 @@ app.get('/api/tasks', authMiddleware, async (req, res) => {
 
 app.post('/api/tasks', authMiddleware, async (req, res) => {
   try {
-    const {
-      title,
-      description = '',
-      category_id = null,
-      start_time = null,
-      duration_minutes = null,
-      due_at = null,
-      priority = 'medium',
-      completed = false,
-    } = req.body;
+    const title = pick(req.body, 'title');
+    const description = pick(req.body, 'description') ?? '';
+    const categoryId = pick(req.body, 'category_id', 'categoryid') ?? null;
+    const startTime = pick(req.body, 'start_time', 'starttime') ?? null;
+    const durationMinutes = pick(req.body, 'duration_minutes', 'durationminutes') ?? null;
+    const dueAt = pick(req.body, 'due_at', 'dueat') ?? null;
+    const priority = pick(req.body, 'priority') ?? 'medium';
+    const completed = !!(pick(req.body, 'completed') ?? false);
 
     if (!title || !String(title).trim()) {
       return res.status(400).json({ error: 'Tiêu đề task không được để trống.' });
     }
 
-    const safePriority = ['low', 'medium', 'high'].includes(priority)
-      ? priority
-      : 'medium';
-
-    const safeCompleted = !!completed;
-    const safeStatus = safeCompleted ? 'completed' : 'pending';
-    const safeCompletedAt = safeCompleted ? new Date() : null;
+    const safePriority = ['low', 'medium', 'high'].includes(priority) ? priority : 'medium';
+    const safeStatus = completed ? 'completed' : 'pending';
+    const safeCompletedAt = completed ? new Date() : null;
 
     const result = await query(
-      `
-      INSERT INTO tasks (
+      `INSERT INTO tasks (
         user_id, category_id, title, description, start_time,
         duration_minutes, due_at, priority, status, completed, completed_at
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `,
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         req.user.id,
-        category_id,
+        categoryId,
         String(title).trim(),
-        description || '',
-        start_time,
-        duration_minutes,
-        due_at,
+        description,
+        startTime,
+        durationMinutes,
+        dueAt,
         safePriority,
         safeStatus,
-        safeCompleted ? 1 : 0,
+        completed ? 1 : 0,
         safeCompletedAt,
       ]
     );
@@ -439,11 +393,9 @@ app.post('/api/tasks', authMiddleware, async (req, res) => {
 app.get('/api/tasks/:id', authMiddleware, async (req, res) => {
   try {
     const task = await getTaskById(req.user.id, req.params.id);
-
     if (!task) {
       return res.status(404).json({ error: 'Không tìm thấy task.' });
     }
-
     res.json(task);
   } catch (err) {
     console.error(err);
@@ -454,75 +406,77 @@ app.get('/api/tasks/:id', authMiddleware, async (req, res) => {
 app.patch('/api/tasks/:id', authMiddleware, async (req, res) => {
   try {
     const existing = await getTaskById(req.user.id, req.params.id);
-
     if (!existing) {
       return res.status(404).json({ error: 'Không tìm thấy task.' });
     }
 
-    const nextCompleted =
-      req.body.completed !== undefined ? !!req.body.completed : existing.completed;
+    const fields = [];
+    const values = [];
 
-    const nextStatus = nextCompleted ? 'completed' : 'pending';
-    const nextCompletedAt =
-      req.body.completed !== undefined
-        ? nextCompleted
-          ? new Date()
-          : null
-        : existing.completed_at;
-
-    const payload = {
-      title: req.body.title !== undefined ? String(req.body.title).trim() : existing.title,
-      description: req.body.description !== undefined ? req.body.description : existing.description,
-      category_id: req.body.category_id !== undefined ? req.body.category_id : existing.category_id,
-      start_time: req.body.start_time !== undefined ? req.body.start_time : existing.start_time,
-      duration_minutes:
-        req.body.duration_minutes !== undefined ? req.body.duration_minutes : existing.duration_minutes,
-      due_at: req.body.due_at !== undefined ? req.body.due_at : existing.due_at,
-      priority: req.body.priority !== undefined ? req.body.priority : existing.priority,
-      completed: nextCompleted,
-      status: nextStatus,
-      completed_at: nextCompletedAt,
-    };
-
-    if (!payload.title) {
-      return res.status(400).json({ error: 'Tiêu đề task không được để trống.' });
+    const title = pick(req.body, 'title');
+    if (title !== undefined) {
+      const trimmed = String(title || '').trim();
+      if (!trimmed) {
+        return res.status(400).json({ error: 'Tiêu đề task không được để trống.' });
+      }
+      fields.push('title = ?');
+      values.push(trimmed);
     }
 
-    if (!['low', 'medium', 'high'].includes(payload.priority)) {
-      payload.priority = 'medium';
+    const description = pick(req.body, 'description');
+    if (description !== undefined) {
+      fields.push('description = ?');
+      values.push(description);
     }
 
-    await query(
-      `
-      UPDATE tasks
-      SET
-        category_id = ?,
-        title = ?,
-        description = ?,
-        start_time = ?,
-        duration_minutes = ?,
-        due_at = ?,
-        priority = ?,
-        status = ?,
-        completed = ?,
-        completed_at = ?
-      WHERE id = ? AND user_id = ?
-      `,
-      [
-        payload.category_id,
-        payload.title,
-        payload.description,
-        payload.start_time,
-        payload.duration_minutes,
-        payload.due_at,
-        payload.priority,
-        payload.status,
-        payload.completed ? 1 : 0,
-        payload.completed_at,
-        req.params.id,
-        req.user.id,
-      ]
-    );
+    const categoryId = pick(req.body, 'category_id', 'categoryid');
+    if (categoryId !== undefined) {
+      fields.push('category_id = ?');
+      values.push(categoryId);
+    }
+
+    const startTime = pick(req.body, 'start_time', 'starttime');
+    if (startTime !== undefined) {
+      fields.push('start_time = ?');
+      values.push(startTime);
+    }
+
+    const durationMinutes = pick(req.body, 'duration_minutes', 'durationminutes');
+    if (durationMinutes !== undefined) {
+      fields.push('duration_minutes = ?');
+      values.push(durationMinutes);
+    }
+
+    const dueAt = pick(req.body, 'due_at', 'dueat');
+    if (dueAt !== undefined) {
+      fields.push('due_at = ?');
+      values.push(dueAt);
+    }
+
+    const priority = pick(req.body, 'priority');
+    if (priority !== undefined) {
+      fields.push('priority = ?');
+      values.push(['low', 'medium', 'high'].includes(priority) ? priority : 'medium');
+    }
+
+    const completed = pick(req.body, 'completed');
+    if (completed !== undefined) {
+      const nextCompleted = !!completed;
+      fields.push('completed = ?');
+      values.push(nextCompleted ? 1 : 0);
+      fields.push('status = ?');
+      values.push(nextCompleted ? 'completed' : 'pending');
+      fields.push('completed_at = ?');
+      values.push(nextCompleted ? new Date() : null);
+    }
+
+    if (!fields.length) {
+      return res.json(existing);
+    }
+
+    values.push(req.params.id, req.user.id);
+
+    await query(`UPDATE tasks SET ${fields.join(', ')} WHERE id = ? AND user_id = ?`, values);
 
     const task = await getTaskById(req.user.id, req.params.id);
     res.json(task);
@@ -534,25 +488,19 @@ app.patch('/api/tasks/:id', authMiddleware, async (req, res) => {
 
 app.patch('/api/tasks/:id/complete', authMiddleware, async (req, res) => {
   try {
-    const completed = !!req.body.completed;
+    const completed = !!pick(req.body, 'completed');
     const status = completed ? 'completed' : 'pending';
     const completedAt = completed ? new Date() : null;
 
     await query(
-      `
-      UPDATE tasks
-      SET completed = ?, status = ?, completed_at = ?
-      WHERE id = ? AND user_id = ?
-      `,
+      'UPDATE tasks SET completed = ?, status = ?, completed_at = ? WHERE id = ? AND user_id = ?',
       [completed ? 1 : 0, status, completedAt, req.params.id, req.user.id]
     );
 
     const task = await getTaskById(req.user.id, req.params.id);
-
     if (!task) {
       return res.status(404).json({ error: 'Không tìm thấy task.' });
     }
-
     res.json(task);
   } catch (err) {
     console.error(err);
@@ -562,17 +510,11 @@ app.patch('/api/tasks/:id/complete', authMiddleware, async (req, res) => {
 
 app.delete('/api/tasks/:id', authMiddleware, async (req, res) => {
   try {
-    await query(
-      `DELETE FROM attachments
-      WHERE user_id = ? AND target_type = 'task' AND target_id = ?`,
-      [req.user.id, req.params.id]
-    );
-
-    await query(
-      'DELETE FROM tasks WHERE id = ? AND user_id = ?',
-      [req.params.id, req.user.id]
-    );
-
+    await query("DELETE FROM attachments WHERE user_id = ? AND target_type = 'task' AND target_id = ?", [
+      req.user.id,
+      req.params.id,
+    ]);
+    await query('DELETE FROM tasks WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
     res.json({ message: 'Đã xóa task thành công.' });
   } catch (err) {
     console.error(err);
@@ -585,14 +527,10 @@ app.delete('/api/tasks/:id', authMiddleware, async (req, res) => {
 app.get('/api/events', authMiddleware, async (req, res) => {
   try {
     const rows = await query(
-      `
-      SELECT
-        id, user_id, category_id, title, description,
-        start_time, duration_minutes, location, reminder_offsets, created_at, updated_at
-      FROM events
-      WHERE user_id = ?
-      ORDER BY start_time ASC, created_at DESC
-      `,
+      `SELECT id, user_id, category_id, title, description, start_time, duration_minutes, location, created_at, updated_at
+       FROM events
+       WHERE user_id = ?
+       ORDER BY start_time ASC, created_at DESC`,
       [req.user.id]
     );
 
@@ -601,15 +539,10 @@ app.get('/api/events', authMiddleware, async (req, res) => {
 
     if (ids.length) {
       attachmentRows = await query(
-        `
-        SELECT
-          id, user_id, target_type, target_id, file_name, file_url, mime_type, created_at
-        FROM attachments
-        WHERE user_id = ?
-          AND target_type = 'event'
-          AND target_id IN (?)
-        ORDER BY created_at DESC
-        `,
+        `SELECT id, user_id, target_type, target_id, file_name, file_url, mime_type, created_at
+         FROM attachments
+         WHERE user_id = ? AND target_type = 'event' AND target_id IN (?)
+         ORDER BY created_at DESC`,
         [req.user.id, ids]
       );
     }
@@ -629,43 +562,25 @@ app.get('/api/events', authMiddleware, async (req, res) => {
 
 app.post('/api/events', authMiddleware, async (req, res) => {
   try {
-    const {
-      title,
-      description = '',
-      category_id = null,
-      start_time,
-      duration_minutes,
-      location = '',
-      reminder_offsets = [],
-    } = req.body;
+    const title = pick(req.body, 'title');
+    const description = pick(req.body, 'description') ?? '';
+    const categoryId = pick(req.body, 'category_id', 'categoryid') ?? null;
+    const startTime = pick(req.body, 'start_time', 'starttime');
+    const durationMinutes = pick(req.body, 'duration_minutes', 'durationminutes');
+    const location = pick(req.body, 'location') ?? '';
 
     if (!title || !String(title).trim()) {
       return res.status(400).json({ error: 'Tên sự kiện không được để trống.' });
     }
 
-    if (!start_time || !duration_minutes) {
+    if (!startTime || !durationMinutes) {
       return res.status(400).json({ error: 'Thiếu thời gian bắt đầu hoặc thời lượng.' });
     }
 
-    const safeReminderOffsets = JSON.stringify(parseReminderOffsets(reminder_offsets));
-
     const result = await query(
-      `
-      INSERT INTO events (
-        user_id, category_id, title, description, start_time, duration_minutes, location, reminder_offsets
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `,
-      [
-        req.user.id,
-        category_id,
-        String(title).trim(),
-        description || '',
-        start_time,
-        duration_minutes,
-        location || '',
-        safeReminderOffsets,
-      ]
+      `INSERT INTO events (user_id, category_id, title, description, start_time, duration_minutes, location)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [req.user.id, categoryId, String(title).trim(), description, startTime, durationMinutes, location]
     );
 
     const event = await getEventById(req.user.id, result.insertId);
@@ -679,11 +594,9 @@ app.post('/api/events', authMiddleware, async (req, res) => {
 app.get('/api/events/:id', authMiddleware, async (req, res) => {
   try {
     const event = await getEventById(req.user.id, req.params.id);
-
     if (!event) {
       return res.status(404).json({ error: 'Không tìm thấy sự kiện.' });
     }
-
     res.json(event);
   } catch (err) {
     console.error(err);
@@ -691,81 +604,106 @@ app.get('/api/events/:id', authMiddleware, async (req, res) => {
   }
 });
 
-app.patch('/api/events/:id', authMiddleware, async (req, res) => {
+app.patch('/api/tasks/:id', authMiddleware, async (req, res) => {
   try {
-    const existing = await getEventById(req.user.id, req.params.id);
-
-    if (!existing) {
-      return res.status(404).json({ error: 'Không tìm thấy sự kiện.' });
-    }
-
-    const payload = {
-      title: req.body.title !== undefined ? String(req.body.title).trim() : existing.title,
-      description: req.body.description !== undefined ? req.body.description : existing.description,
-      category_id: req.body.category_id !== undefined ? req.body.category_id : existing.category_id,
-      start_time: req.body.start_time !== undefined ? req.body.start_time : existing.start_time,
-      duration_minutes:
-        req.body.duration_minutes !== undefined ? req.body.duration_minutes : existing.duration_minutes,
-      location: req.body.location !== undefined ? req.body.location : existing.location,
-      reminder_offsets:
-        req.body.reminder_offsets !== undefined ? req.body.reminder_offsets : existing.reminder_offsets,
-    };
-
-    if (!payload.title) {
-      return res.status(400).json({ error: 'Tên sự kiện không được để trống.' });
-    }
-
-    if (!payload.start_time || !payload.duration_minutes) {
-      return res.status(400).json({ error: 'Thiếu thời gian bắt đầu hoặc thời lượng.' });
-    }
-
-    await query(
-      `
-      UPDATE events
-      SET
-        category_id = ?,
-        title = ?,
-        description = ?,
-        start_time = ?,
-        duration_minutes = ?,
-        location = ?,
-        reminder_offsets = ?
-      WHERE id = ? AND user_id = ?
-      `,
-      [
-        payload.category_id,
-        payload.title,
-        payload.description,
-        payload.start_time,
-        payload.duration_minutes,
-        payload.location,
-        JSON.stringify(parseReminderOffsets(payload.reminder_offsets)),
-        req.params.id,
-        req.user.id,
-      ]
+    const rows = await query(
+      `SELECT id, userid, categoryid, title, description, starttime, durationminutes, dueat,
+              priority, status, completed, completedat, createdat, updatedat
+       FROM tasks
+       WHERE id = ? AND userid = ?
+       LIMIT 1`,
+      [req.params.id, req.user.id]
     );
 
-    const event = await getEventById(req.user.id, req.params.id);
-    res.json(event);
+    if (!rows.length) {
+      return res.status(404).json({ error: 'Không tìm thấy task.' });
+    }
+
+    const existing = rows[0];
+    const fields = [];
+    const values = [];
+
+    if (req.body.title !== undefined) {
+      const title = String(req.body.title || '').trim();
+      if (!title) return res.status(400).json({ error: 'Tiêu đề task không được để trống.' });
+      fields.push('title = ?');
+      values.push(title);
+    }
+
+    if (req.body.description !== undefined) {
+      fields.push('description = ?');
+      values.push(req.body.description);
+    }
+
+    if (req.body.categoryid !== undefined || req.body.category_id !== undefined) {
+      fields.push('categoryid = ?');
+      values.push(req.body.categoryid ?? req.body.category_id);
+    }
+
+    if (req.body.starttime !== undefined || req.body.start_time !== undefined) {
+      fields.push('starttime = ?');
+      values.push(req.body.starttime ?? req.body.start_time);
+    }
+
+    if (req.body.durationminutes !== undefined || req.body.duration_minutes !== undefined) {
+      fields.push('durationminutes = ?');
+      values.push(req.body.durationminutes ?? req.body.duration_minutes);
+    }
+
+    if (req.body.dueat !== undefined || req.body.due_at !== undefined) {
+      fields.push('dueat = ?');
+      values.push(req.body.dueat ?? req.body.due_at);
+    }
+
+    if (req.body.priority !== undefined) {
+      fields.push('priority = ?');
+      values.push(['low', 'medium', 'high'].includes(req.body.priority) ? req.body.priority : 'medium');
+    }
+
+    if (req.body.completed !== undefined) {
+      const completed = !!req.body.completed;
+      fields.push('completed = ?');
+      values.push(completed ? 1 : 0);
+      fields.push('status = ?');
+      values.push(completed ? 'completed' : 'pending');
+      fields.push('completedat = ?');
+      values.push(completed ? new Date() : null);
+    }
+
+    if (!fields.length) {
+      return res.json(mapTask(existing));
+    }
+
+    values.push(req.params.id, req.user.id);
+
+    await query(
+      `UPDATE tasks SET ${fields.join(', ')} WHERE id = ? AND userid = ?`,
+      values
+    );
+
+    const updatedRows = await query(
+      `SELECT id, userid, categoryid, title, description, starttime, durationminutes, dueat,
+              priority, status, completed, completedat, createdat, updatedat
+       FROM tasks
+       WHERE id = ? AND userid = ?
+       LIMIT 1`,
+      [req.params.id, req.user.id]
+    );
+
+    res.json(mapTask(updatedRows[0]));
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ error: 'Không thể cập nhật sự kiện.' });
+    console.error('PATCH /api/tasks/:id error:', err);
+    res.status(500).json({ error: 'Không thể cập nhật task.' });
   }
 });
 
 app.delete('/api/events/:id', authMiddleware, async (req, res) => {
   try {
-    await query(
-      `DELETE FROM attachments
-      WHERE user_id = ? AND target_type = 'event' AND target_id = ?`,
-      [req.user.id, req.params.id]
-    );
-
-    await query(
-      'DELETE FROM events WHERE id = ? AND user_id = ?',
-      [req.params.id, req.user.id]
-    );
-
+    await query("DELETE FROM attachments WHERE user_id = ? AND target_type = 'event' AND target_id = ?", [
+      req.user.id,
+      req.params.id,
+    ]);
+    await query('DELETE FROM events WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
     res.json({ message: 'Đã xóa sự kiện thành công.' });
   } catch (err) {
     console.error(err);
@@ -778,15 +716,12 @@ app.delete('/api/events/:id', authMiddleware, async (req, res) => {
 app.get('/api/notes', authMiddleware, async (req, res) => {
   try {
     const rows = await query(
-      `
-      SELECT id, user_id, title, content, color, pinned, created_at, updated_at
-      FROM notes
-      WHERE user_id = ?
-      ORDER BY pinned DESC, created_at DESC
-      `,
+      `SELECT id, user_id, title, content, color, pinned, created_at, updated_at
+       FROM notes
+       WHERE user_id = ?
+       ORDER BY pinned DESC, created_at DESC`,
       [req.user.id]
     );
-
     res.json(rows.map(normalizeNote));
   } catch (err) {
     console.error(err);
@@ -796,32 +731,22 @@ app.get('/api/notes', authMiddleware, async (req, res) => {
 
 app.post('/api/notes', authMiddleware, async (req, res) => {
   try {
-    const {
-      title = '',
-      content,
-      color = '',
-      pinned = false,
-    } = req.body;
+    const title = pick(req.body, 'title') ?? '';
+    const content = pick(req.body, 'content');
+    const color = pick(req.body, 'color') ?? '';
+    const pinned = !!(pick(req.body, 'pinned') ?? false);
 
     if (!content || !String(content).trim()) {
       return res.status(400).json({ error: 'Nội dung ghi chú không được để trống.' });
     }
 
     const result = await query(
-      `
-      INSERT INTO notes (user_id, title, content, color, pinned)
-      VALUES (?, ?, ?, ?, ?)
-      `,
-      [req.user.id, title || '', content, color || '', pinned ? 1 : 0]
+      'INSERT INTO notes (user_id, title, content, color, pinned) VALUES (?, ?, ?, ?, ?)',
+      [req.user.id, title, content, color, pinned ? 1 : 0]
     );
 
     const rows = await query(
-      `
-      SELECT id, user_id, title, content, color, pinned, created_at, updated_at
-      FROM notes
-      WHERE id = ? AND user_id = ?
-      LIMIT 1
-      `,
+      'SELECT id, user_id, title, content, color, pinned, created_at, updated_at FROM notes WHERE id = ? AND user_id = ? LIMIT 1',
       [result.insertId, req.user.id]
     );
 
@@ -834,11 +759,7 @@ app.post('/api/notes', authMiddleware, async (req, res) => {
 
 app.delete('/api/notes/:id', authMiddleware, async (req, res) => {
   try {
-    await query(
-      'DELETE FROM notes WHERE id = ? AND user_id = ?',
-      [req.params.id, req.user.id]
-    );
-
+    await query('DELETE FROM notes WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
     res.json({ message: 'Đã xóa ghi chú thành công.' });
   } catch (err) {
     console.error(err);
@@ -850,53 +771,41 @@ app.delete('/api/notes/:id', authMiddleware, async (req, res) => {
 
 app.post('/api/attachments/upload-base64', authMiddleware, async (req, res) => {
   try {
-    const {
-      target_type,
-      target_id,
-      file_name,
-      mime_type,
-      data,
-    } = req.body;
+    const targetType = pick(req.body, 'target_type', 'targettype');
+    const targetId = pick(req.body, 'target_id', 'targetid');
+    const fileName = pick(req.body, 'file_name', 'filename');
+    const mimeType = pick(req.body, 'mime_type', 'mimetype');
+    const data = pick(req.body, 'data');
 
-    if (!['task', 'event'].includes(target_type)) {
+    if (!['task', 'event'].includes(targetType)) {
       return res.status(400).json({ error: 'target_type không hợp lệ.' });
     }
 
-    if (!target_id || !file_name || !data) {
+    if (!targetId || !fileName || !data) {
       return res.status(400).json({ error: 'Thiếu dữ liệu attachment.' });
     }
 
-    if (target_type === 'task') {
-      const task = await getTaskById(req.user.id, target_id);
-      if (!task) {
-        return res.status(404).json({ error: 'Task không tồn tại.' });
-      }
+    if (targetType === 'task') {
+      const task = await getTaskById(req.user.id, targetId);
+      if (!task) return res.status(404).json({ error: 'Task không tồn tại.' });
     }
 
-    if (target_type === 'event') {
-      const event = await getEventById(req.user.id, target_id);
-      if (!event) {
-        return res.status(404).json({ error: 'Sự kiện không tồn tại.' });
-      }
+    if (targetType === 'event') {
+      const event = await getEventById(req.user.id, targetId);
+      if (!event) return res.status(404).json({ error: 'Sự kiện không tồn tại.' });
     }
 
     const result = await query(
-      `
-      INSERT INTO attachments (
-        user_id, target_type, target_id, file_name, file_url, mime_type
-      )
-      VALUES (?, ?, ?, ?, ?, ?)
-      `,
-      [req.user.id, target_type, target_id, file_name, data, mime_type || null]
+      `INSERT INTO attachments (user_id, target_type, target_id, file_name, file_url, mime_type)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+      [req.user.id, targetType, targetId, fileName, data, mimeType || null]
     );
 
     const rows = await query(
-      `
-      SELECT id, user_id, target_type, target_id, file_name, file_url, mime_type, created_at
-      FROM attachments
-      WHERE id = ? AND user_id = ?
-      LIMIT 1
-      `,
+      `SELECT id, user_id, target_type, target_id, file_name, file_url, mime_type, created_at
+       FROM attachments
+       WHERE id = ? AND user_id = ?
+       LIMIT 1`,
       [result.insertId, req.user.id]
     );
 
@@ -909,11 +818,7 @@ app.post('/api/attachments/upload-base64', authMiddleware, async (req, res) => {
 
 app.delete('/api/attachments/:id', authMiddleware, async (req, res) => {
   try {
-    await query(
-      'DELETE FROM attachments WHERE id = ? AND user_id = ?',
-      [req.params.id, req.user.id]
-    );
-
+    await query('DELETE FROM attachments WHERE id = ? AND user_id = ?', [req.params.id, req.user.id]);
     res.json({ message: 'Đã xóa attachment thành công.' });
   } catch (err) {
     console.error(err);

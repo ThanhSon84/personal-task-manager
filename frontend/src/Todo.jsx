@@ -839,40 +839,41 @@ function Todo() {
   }
 
   async function moveTaskToCategory(taskId, categoryId) {
-    const task = tasks.find((item) => item.id === taskId);
-    const nextCategory = categories.find((item) => item.id === categoryId);
+  const task = tasks.find((item) => item.id === taskId);
+  const nextCategory = categories.find((item) => item.id === categoryId);
 
-    if (!task || task.category_id === categoryId) {
-      setDraggedTaskId(null);
-      return;
-    }
-
-    try {
-      const res = await api.patch(`/api/tasks/${taskId}`, {
-        title: task.title,
-        description: task.description,
-        category_id: categoryId,
-        priority: task.priority,
-        start_time: task.start_time,
-        duration_minutes: task.duration_minutes,
-        due_at: task.due_at,
-        completed: task.completed,
-      });
-
-      const updatedTask = normalizeTask({
-        ...res.data,
-        attachments: prevTaskAttachments(tasks, taskId, res.data.attachments),
-      });
-
-      setTasks((prev) => prev.map((item) => (item.id === taskId ? updatedTask : item)));
-      setModal((prev) => (prev.item?.id === taskId ? { ...prev, item: { ...prev.item, ...updatedTask } } : prev));
-      pushToast('Đã chuyển category', `${task.title} → ${nextCategory?.name || 'Nhóm mới'}`);
-    } catch (err) {
-      alert(err.response?.data?.error || 'Không thể chuyển task sang cột mới.');
-    } finally {
-      setDraggedTaskId(null);
-    }
+  if (!task || task.categoryid === categoryId) {
+    setDraggedTaskId(null);
+    return;
   }
+
+  try {
+    const res = await api.patch(`/api/tasks/${taskId}`, {
+      categoryid: categoryId,
+    });
+
+    const updatedTask = normalizeTask({
+      ...res.data,
+      attachments: prevTaskAttachments(tasks, taskId, res.data.attachments),
+    });
+
+    setTasks((prev) =>
+      prev.map((item) => (item.id === taskId ? updatedTask : item))
+    );
+
+    setModal((prev) =>
+      prev.item?.id === taskId
+        ? { ...prev, item: { ...prev.item, ...updatedTask } }
+        : prev
+    );
+
+    pushToast('Chuyển category', task.title, nextCategory?.name || 'Nhóm mới');
+  } catch (err) {
+    alert(err.response?.data?.error || 'Không thể chuyển task sang cột mới.');
+  } finally {
+    setDraggedTaskId(null);
+  }
+}
 
   async function createNote(payload) {
     const res = await api.post('/api/notes', payload);
